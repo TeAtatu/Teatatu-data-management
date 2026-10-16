@@ -36,6 +36,12 @@ Preserve these invariants unless the change explicitly asks to alter them:
 
 7. Multisite: master data lives on the Master Site (teatatu_data_get_master_site_id()) and every read from another site goes through teatatu_data_on_master(). Roles are provisioned per site via the activation hook's own $network_wide flag plus wp_initialize_site. Admin-post.php form handlers always post to the plain admin_url( 'admin-post.php' ) — never network_admin_url( 'admin-post.php' ), which does not exist in core.
 
+7a. Nothing is public. Data set post types are registered public => false, publicly_queryable => false, show_in_rest => false. No shortcodes, no front-end output, no unauthenticated REST — every teatatu-data/v1 route requires read_teatatu_data. User data is described by structure only in the dictionary; never copy, display or edit user values — that stays in the standard WordPress Users screens. No schema may hold a named individual's personal details.
+
+7b. Storage: one private custom post type per data set on the Master Site; lifecycle = custom post statuses. Events/News keep their own taxonomy terms linked to master records by the teatatu_data_ref term meta (uuid), synced from the Master Site.
+
+7c. External connectors (OSM, LINZ, Charities Register, NZBN) only ever create proposed changes. Their API keys are network settings handled like the GitHub token (never echoed back, clearable, deleted on uninstall).
+
 8. Consumers degrade gracefully. Teatatu Events and News must keep working when Teatatu Data is inactive: they check function_exists() and fall back to their own data.
 
 9. Images are link-only (URLs stored and served as-is, never downloaded), as in Events and News.
@@ -43,6 +49,18 @@ Preserve these invariants unless the change explicitly asks to alter them:
 10. Security baseline on every admin/REST path: nonces, the narrowest current_user_can() check, verify an ID belongs to our data set before acting on it, esc_* on output, sanitize_* on input.
 
 11. Auto-updates stay GitHub-Releases-based (includes/updater.php), using only wp_remote_get() and core update filters.
+
+11a. Neighbourhoods: exactly three, fixed by the boundary key enum (matipo/beach/harbourview); consumers store slugs/uuids, never keys. teatatu_data_resolve_neighbourhood() is the only resolver — never call a geocoding service. The bundled assets/data files only seed and top up; the database records are what is used. Data set modules live in includes/datasets/ and register on teatatu_data_datasets; multi-field rules go in the data set's `validate` callback and are described in its `rules`.
+
+11b. Venues: teatatu_data_format_address() is the only place address fields are joined; teatatu_data_match_venue() is the only matcher; derived fields (neighbourhood, match key) are worked out by the data set's `derive` callback on every write and are never set directly. Coordinates are never geocoded.
+
+11c. Organisations: public organisation contacts only — no field for a person's name, email or phone may be added. NZBN/charity numbers live in external_ids (nzbn, charity). Bring-ins from Events/News go through includes/bring-in.php and always end as one batch of proposals, never direct writes, and never propose the same source twice.
+
+11d. Tags and categories: each vocabulary is its own data set, defined in includes/datasets/vocabularies.php (add new ones on teatatu_data_vocabularies, don't copy the code). teatatu_data_match_terms() is the only term matcher and never creates terms. Names and slugs are unique within a vocabulary.
+
+11e. Data quality: checks are declared, not hard-coded in screens — built-ins in includes/quality.php, data-set-specific ones via `quality_checks`, `duplicate_keys` and `recommended` fields. Issue IDs must stay stable (check + records + detail) so dismissals last. Merges go only through teatatu_data_merge(), which uses the write path for every step and repoints every reference.
+
+11f. Connections: Teatatu Data pushes into Events'/News' own storage (includes/connections.php); they never call into Teatatu Data except through their small bridge files (function_exists checks), so both keep working without it. Lists are only managed once a steward switches them on. The sync links before it creates, never deletes an unlinked term, and only deletes a term after moving its posts to a merged record's replacement.
 
 12. Uninstall never deletes master data unless the "Delete all Teatatu Data master data" setting is on, and never touches Events or News data.
 

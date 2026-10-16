@@ -24,19 +24,36 @@ require_once __DIR__ . '/includes/capabilities.php';
 function teatatu_data_uninstall_cleanup_site( $delete_data ) {
 	teatatu_data_remove_role_and_caps();
 	delete_option( 'teatatu_data_caps_version' );
+	wp_clear_scheduled_hook( 'teatatu_data_rederive_venues' );
+	wp_clear_scheduled_hook( 'teatatu_data_quality_scan' );
+	wp_clear_scheduled_hook( 'teatatu_data_sync' );
+	delete_option( 'teatatu_data_quality' );
 
 	if ( ! $delete_data ) {
 		return;
 	}
-	// Data set storage is deleted here as each data set is built.
+
+	// Every data set's records (post types ttd_*) and the change log. The
+	// data set registry isn't loaded during uninstall, so match by prefix.
+	global $wpdb;
+	$post_ids = $wpdb->get_col( "SELECT ID FROM {$wpdb->posts} WHERE post_type LIKE 'ttd\\_%' OR post_type = 'teatatu_data_change'" ); // phpcs:ignore WordPress.DB.DirectDatabaseQuery
+	foreach ( $post_ids as $post_id ) {
+		wp_delete_post( (int) $post_id, true );
+	}
 }
 
 $teatatu_data_network_options = array(
+	'teatatu_data_dataset_settings',
 	'teatatu_data_master_site_id',
 	'teatatu_data_github_repo',
 	'teatatu_data_github_token',
 	'teatatu_data_delete_data_on_uninstall',
 	'teatatu_data_cache_ver',
+	'teatatu_data_nbhd_seeded',
+	'teatatu_data_nbhd_seed_errors',
+	'teatatu_data_quality_dismissed',
+	'teatatu_data_managed',
+	'teatatu_data_sync_report',
 );
 
 if ( is_multisite() ) {
